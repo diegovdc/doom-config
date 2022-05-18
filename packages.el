@@ -58,6 +58,9 @@
 (package! company-quickhelp)
 (package! key-chord)
 (package! easy-kill)
+(package! wakatime-mode)
+(package! cider-eval-sexp-fu)
+(package! crux)
 
 (unpin! hover)
 (unpin! treemacs)

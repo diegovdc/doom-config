@@ -111,21 +111,31 @@
 (global-set-key (kbd "C-x v") 'yank)
 (global-set-key (kbd "C-x C-v") 'yank)
 
+;; doom's `persp-mode' activation disables uniquify, b/c it says it breaks it.
+;; It doesn't cause big enough problems for me to worry about it, so we override
+;; the override. `persp-mode' is activated in the `doom-init-ui-hook', so we add
+;; another hook at the end of the list of hooks to set our uniquify values.
+(add-hook! 'doom-init-ui-hook
+           :append ;; ensure it gets added to the end.
+           #'(lambda () (require 'uniquify) (setq uniquify-buffer-name-style 'forward)))
+
+
 ;;;;;;;;;;;
 ;;;;;;;;;;;
-(use-package! cider
-  :after clojure-mode
-  :config
-  (setq cider-show-error-buffer t                   ;'only-in-repl
-        cider-font-lock-dynamically nil             ; use lsp semantic tokens
-        cider-eldoc-display-for-symbol-at-point nil ; use lsp
-        cider-prompt-for-symbol nil
-        cider-use-xref nil)                                ; use lsp
-  (set-lookup-handlers! '(cider-mode cider-repl-mode) nil) ; use lsp
-  (set-popup-rule! "*cider-test-report*" :side 'right :width 0.4)
-  (set-popup-rule! "^\\*cider-repl" :side 'bottom :quit nil)
-  ;; use lsp completion
-  (add-hook 'cider-mode-hook (lambda () (remove-hook 'completion-at-point-functions #'cider-complete-at-point))))
+;; (use-package! cider
+;;   :after clojure-mode
+;;   :config
+;;   (setq cider-show-error-buffer t                   ;'only-in-repl
+;;         cider-font-lock-dynamically nil             ; use lsp semantic tokens
+;;         cider-eldoc-display-for-symbol-at-point nil ; use lsp
+;;         cider-prompt-for-symbol nil
+;;         cider-use-xref nil
+;;         cider-auto-select-error-buffer nil)                                ; use lsp
+;;   (set-lookup-handlers! '(cider-mode cider-repl-mode) nil) ; use lsp
+;;   (set-popup-rule! "*cider-test-report*" :side 'right :width 0.4)
+;;   (set-popup-rule! "^\\*cider-repl" :side 'bottom :quit nil)
+;;   ;; use lsp completion
+;;   (add-hook 'cider-mode-hook (lambda () (remove-hook 'completion-at-point-functions #'cider-complete-at-point))))
 
 (use-package! clj-refactor
   :after clojure-mode
@@ -165,9 +175,8 @@
 
 ;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;
-(use-package! paredit
-  :hook ((clojure-mode . paredit-mode)
-         (emacs-lisp-mode . paredit-mode)))
+(use-package! paredit-mode
+  :hook (clojure-mode emacs-lisp-mode))
 
 (after! paredit
   (map! :map 'paredit-mode-map
@@ -178,6 +187,9 @@
 ;;;;;;;;;;;
 (use-package! treemacs-all-the-icons
   :after treemacs)
+
+(after! crux
+  (global-set-key (kbd "C-a") 'crux-move-beginning-of-line))
 
 ;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;
@@ -191,9 +203,60 @@
 ;;; clojure ;;;;
 ;;;;;;;;;;;;;;;;
 
-
-
 (setq clojure-toplevel-inside-comment-form t)
+
+
+(after! clj-refactor
+  (defun setup-clj-refactor ()
+    (clj-refactor-mode 1)
+    (yas-minor-mode 1)                ; for adding require/use/import statements
+    ;; This choice of keybinding leaves cider-macroexpand-1 unbound
+    (cljr-add-keybindings-with-prefix "C-c C-m"))
+
+  (defun cider-clear-repl-buffer* ()
+    (interactive)
+    (cider-switch-to-repl-buffer)
+    (cider-repl-clear-buffer)
+    (insert ";; cleared buffer")
+    (cider-repl-return)
+    (cider-switch-to-last-clojure-buffer))
+
+
+  (defun clojure-eval-after-save ()
+    (interactive)
+    (print (and (equal major-mode 'clojure-mode)
+                (boundp 'cider-mode) cider-mode))
+    (if (and (equal major-mode 'clojure-mode)
+             (boundp 'cider-mode) cider-mode)
+        ((lambda ()
+           (save-buffer)
+           (cider-eval-file (buffer-file-name))))
+      (save-buffer)))
+
+  (define-key clojure-mode-map (kbd "C-c C-SPC") 'cider-clear-repl-buffer*)
+  (define-key cider-repl-mode-map (kbd "C-c C-SPC") 'cider-clear-repl-buffer*)
+  (define-key clojure-mode-map (kbd "C-x C-s") 'clojure-eval-after-save)
+  (define-key clojure-mode-map (kbd "C-x s") 'clojure-eval-after-save)
+  (add-hook 'clojure-mode-hook #'setup-clj-refactor)
+  (add-hook 'cider-repl-mode-hook #'lispy-mode))
+
+(after! lispy
+  (define-key lispy-mode-map (kbd "M-.") 'lsp-find-definition)
+  (define-key lispy-mode-map (kbd "C-a") 'crux-move-beginning-of-line))
+
+
+(require 'cider-eval-sexp-fu)
+(setq eval-sexp-fu-flash-duration 1)
+
+;uniquify-buffer-name-styli;;;;;;;
+;;;;;;;;
+;; buffer naming
+;; https://www.gnu.org/software/emacs/manual/html_node/emacs/Uniquify.html
+(setq uniquify-buffer-name-style 'forward)
+
+;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;
+(global-wakatime-mode)
 
 ;;;;;;;;;;;;;;;;;;
 ;;; key chords ;;;
