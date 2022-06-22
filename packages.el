@@ -61,6 +61,7 @@
 (package! wakatime-mode)
 (package! cider-eval-sexp-fu)
 (package! crux)
+(package! lispy)
 
 (unpin! hover)
 (unpin! treemacs)

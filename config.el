@@ -98,9 +98,12 @@
 
 ;;;;;;;;;;
 ;;;;;;;;;;
-(global-unset-key (kbd "C-z"))
-(global-set-key (kbd "C-z")   'undo-fu-only-undo)
-(global-set-key (kbd "C-S-z") 'undo-fu-only-redo)
+;;;;;;;;;;
+(global-set-key (kbd "C-z") 'undo)
+;; make ctrl-shift-Z redo
+(defalias 'redo 'undo-tree-redo)
+(global-set-key (kbd "C-S-z") 'undo-tree-redo)
+
 
 ;; move-text
 (global-set-key (kbd "M-s-<up>") 'move-text-up)
@@ -120,22 +123,33 @@
            #'(lambda () (require 'uniquify) (setq uniquify-buffer-name-style 'forward)))
 
 
+(setq +format-with-lsp nil)
 ;;;;;;;;;;;
 ;;;;;;;;;;;
-;; (use-package! cider
-;;   :after clojure-mode
-;;   :config
-;;   (setq cider-show-error-buffer t                   ;'only-in-repl
-;;         cider-font-lock-dynamically nil             ; use lsp semantic tokens
-;;         cider-eldoc-display-for-symbol-at-point nil ; use lsp
-;;         cider-prompt-for-symbol nil
-;;         cider-use-xref nil
-;;         cider-auto-select-error-buffer nil)                                ; use lsp
-;;   (set-lookup-handlers! '(cider-mode cider-repl-mode) nil) ; use lsp
-;;   (set-popup-rule! "*cider-test-report*" :side 'right :width 0.4)
-;;   (set-popup-rule! "^\\*cider-repl" :side 'bottom :quit nil)
-;;   ;; use lsp completion
-;;   (add-hook 'cider-mode-hook (lambda () (remove-hook 'completion-at-point-functions #'cider-complete-at-point))))
+
+(use-package! cider
+  :after clojure-mode
+  :config
+  (setq cider-show-error-buffer t       ;'only-in-repl
+        ;; cider-font-lock-dynamically nil ; use lsp semantic tokens
+        ;; cider-eldoc-display-for-symbol-at-point nil ; use lsp
+        cider-prompt-for-symbol nil
+        cider-use-xref nil
+        cider-auto-select-error-buffer nil
+        lsp-log-io t
+        lsp-semantic-tokens-enable nil
+        lsp-enable-on-type-formatting nil
+        lsp-signature-mode nil
+        lsp-signature-render-documentation nil
+        lsp-completion-enable t)
+  (set-lookup-handlers! '(cider-mode cider-repl-mode) nil) ; use lsp
+  (set-popup-rule! "*cider-test-report*" :side 'right :width 0.4)
+  (set-popup-rule! "*cider-error" :side 'right :width 0.4)
+  (set-popup-rule! "*cider-result" :side 'right :width 0.4)
+  (set-popup-rule! "^\\*cider-repl" :side 'bottom :quit nil)
+  ;; use lsp completion
+  ;; (add-hook 'cider-mode-hook (lambda () (remove-hook 'completion-at-point-functions #'cider-complete-at-point)))
+  (add-hook 'before-save-hook 'cider-format-buffer t t))
 
 (use-package! clj-refactor
   :after clojure-mode
@@ -193,12 +207,7 @@
 
 ;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;
-(after! undo-tree
-  (add-hook 'evil-local-mode-hook 'turn-on-undo-tree-mode)
-  (global-undo-tree-mode 1)
-  (global-set-key (kbd "C-u") 'undo)
-  (defalias 'redo 'undo-tree-redo)
-  (global-set-key (kbd "C-S-U") 'redo))
+
 
 ;;; clojure ;;;;
 ;;;;;;;;;;;;;;;;
@@ -226,22 +235,30 @@
     (interactive)
     (print (and (equal major-mode 'clojure-mode)
                 (boundp 'cider-mode) cider-mode))
-    (if (and (equal major-mode 'clojure-mode)
-             (boundp 'cider-mode) cider-mode)
-        ((lambda ()
-           (save-buffer)
-           (cider-eval-file (buffer-file-name))))
-      (save-buffer)))
+    (cond
+     ((and (equal major-mode 'clojure-mode)
+           (boundp 'cider-mode) cider-mode)
+      ((lambda ()
+         ;; (cider-format-buffer)
+         (save-buffer)
+         (cider-eval-file (buffer-file-name)))))
+     ((and (equal major-mode 'clojurescript-mode)
+           (boundp 'cider-mode) cider-mode)
+      ((lambda ()
+         ;; (cider-format-buffer)
+         (save-buffer))))
+     (t (save-buffer))))
 
   (define-key clojure-mode-map (kbd "C-c C-SPC") 'cider-clear-repl-buffer*)
   (define-key cider-repl-mode-map (kbd "C-c C-SPC") 'cider-clear-repl-buffer*)
   (define-key clojure-mode-map (kbd "C-x C-s") 'clojure-eval-after-save)
   (define-key clojure-mode-map (kbd "C-x s") 'clojure-eval-after-save)
   (add-hook 'clojure-mode-hook #'setup-clj-refactor)
-  (add-hook 'cider-repl-mode-hook #'lispy-mode))
+  (add-hook 'cider-repl-mode-hook #'lispy-mode)
+  )
 
 (after! lispy
-  (define-key lispy-mode-map (kbd "M-.") 'lsp-find-definition)
+  ;; (define-key lispy-mode-map (kbd "M-.") 'lsp-find-definition)
   (define-key lispy-mode-map (kbd "C-a") 'crux-move-beginning-of-line))
 
 
