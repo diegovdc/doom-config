@@ -33,9 +33,10 @@
 ;; available. You can either set `doom-theme' or manually load a theme with the
 ;; `load-theme' function. This is the default:
 (setq doom-theme 'doom-opera
-      doom-font (font-spec :size 16)
+      doom-font (font-spec :family "Monospace" :size 17)
       projectile-project-search-path '("~/code/" "~/docs/")
       projectile-enable-caching nil)
+
 
 ;; This determines the style of line numbers in effect. If set to `nil', line
 ;; numbers are disabled. For relative line numbers, set this to `relative'.
@@ -114,6 +115,30 @@
 (global-set-key (kbd "C-x v") 'yank)
 (global-set-key (kbd "C-x C-v") 'yank)
 
+(defun duplicate-line-or-region (&optional n)
+  "Duplicate current line, or region if active.
+With argument N, make N copies.
+With negative N, comment out original line and use the absolute value."
+  (interactive "*p")
+  (let ((use-region (use-region-p)))
+    (save-excursion
+      (let ((text (if use-region ;Get region if active, otherwise line
+                      (buffer-substring (region-beginning) (region-end))
+                    (prog1 (thing-at-point 'line)
+                      (end-of-line)
+                      (if (< 0 (forward-line 1)) ;Go to beginning of next line, or make a new one
+                          (newline))))))
+        (dotimes (i (abs (or n 1))) ;Insert N times, or once if not specified
+          (insert text))))
+    (if use-region nil ;Only if we're working with a line (not a region)
+      (let ((pos (- (point) (line-beginning-position)))) ;Save column
+        (if (> 0 n)            ;Comment out original with negative arg
+            (comment-region (line-beginning-position) (line-end-position)))
+        (forward-line 1)
+        (forward-char pos)))))
+
+(global-set-key [?\C-c ?d] 'duplicate-line-or-region)
+
 ;; doom's `persp-mode' activation disables uniquify, b/c it says it breaks it.
 ;; It doesn't cause big enough problems for me to worry about it, so we override
 ;; the override. `persp-mode' is activated in the `doom-init-ui-hook', so we add
@@ -133,12 +158,14 @@
   (setq cider-show-error-buffer t       ;'only-in-repl
         ;; cider-font-lock-dynamically nil ; use lsp semantic tokens
         ;; cider-eldoc-display-for-symbol-at-point nil ; use lsp
+        lsp-mode 1
         cider-prompt-for-symbol nil
         cider-use-xref nil
         cider-auto-select-error-buffer nil
         lsp-log-io t
         lsp-semantic-tokens-enable nil
         lsp-enable-on-type-formatting nil
+        lsp-enable-indentation nil
         lsp-signature-mode nil
         lsp-signature-render-documentation nil
         lsp-completion-enable t)
@@ -195,7 +222,9 @@
 (after! paredit
   (map! :map 'paredit-mode-map
         "C-}" #'paredit-forward-slurp-sexp
-        "C-{" #'paredit-forward-barf-sexp))
+        "C-{" #'paredit-forward-barf-sexp
+        "C-<backspace>" #'paredit-backward-kill-word
+        "M-<backspace>" #'paredit-backward-kill-word))
 
 ;;;;;;;;;;;
 ;;;;;;;;;;;
@@ -233,10 +262,12 @@
 
   (defun clojure-eval-after-save ()
     (interactive)
-    (print (and (equal major-mode 'clojure-mode)
-                (boundp 'cider-mode) cider-mode))
+    ;; (print major-mode
+    ;;        (and (equal major-mode 'clojure-mode)
+    ;;             (boundp 'cider-mode) cider-mode))
     (cond
-     ((and (equal major-mode 'clojure-mode)
+     ((and (or (equal major-mode 'clojure-mode)
+               (equal major-mode 'clojurec-mode))
            (boundp 'cider-mode) cider-mode)
       ((lambda ()
          ;; (cider-format-buffer)
@@ -253,13 +284,16 @@
   (define-key cider-repl-mode-map (kbd "C-c C-SPC") 'cider-clear-repl-buffer*)
   (define-key clojure-mode-map (kbd "C-x C-s") 'clojure-eval-after-save)
   (define-key clojure-mode-map (kbd "C-x s") 'clojure-eval-after-save)
+  (define-key clojure-mode-map (kbd "C-M-,") 'better-jumper-jump-forward)
+  (define-key clojure-mode-map (kbd "M-,") 'better-jumper-jump-backward)
   (add-hook 'clojure-mode-hook #'setup-clj-refactor)
-  (add-hook 'cider-repl-mode-hook #'lispy-mode)
-  )
+  (add-hook 'cider-repl-mode-hook #'lispy-mode))
 
 (after! lispy
   ;; (define-key lispy-mode-map (kbd "M-.") 'lsp-find-definition)
-  (define-key lispy-mode-map (kbd "C-a") 'crux-move-beginning-of-line))
+  (define-key lispy-mode-map (kbd "C-a") 'crux-move-beginning-of-line)
+  (define-key lispy-mode-map (kbd "C-M-,") 'better-jumper-jump-forward)
+  (define-key lispy-mode-map (kbd "M-,") 'better-jumper-jump-backward))
 
 
 (require 'cider-eval-sexp-fu)
@@ -330,3 +364,12 @@
 
 (global-set-key (kbd "C-x C-z") 'transpose-buffers)
 ;; (define-key projectile-mode-map (kbd "C-x C-z") 'transpose-buffers)
+
+
+(defun file-notify-rm-all-watches ()
+  "Remove all existing file notification watches from Emacs."
+  (interactive)
+  (maphash
+   (lambda (key _value)
+     (file-notify-rm-watch key))
+   file-notify-descriptors))
